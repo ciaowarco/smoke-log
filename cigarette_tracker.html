@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Smoke Log</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0e;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --text: #f0ede8;
+    --muted: #666;
+    --accent: #e8622a;
+    --accent-dim: #4a1e0d;
+    --success: #3a9e6e;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  }
+
+  header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  header .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .main { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* Big count display */
+  .hero {
+    text-align: center;
+    padding: 32px 0 28px;
+    position: relative;
+  }
+
+  .hero-num {
+    font-family: var(--mono);
+    font-size: 88px;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -4px;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .hero-num.bump { transform: scale(1.08); }
+
+  .hero-label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+    margin-top: 6px;
+  }
+
+  .goal-bar-wrap {
+    margin: 0 0 28px;
+  }
+
+  .goal-bar-track {
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .goal-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  .goal-bar-fill.over { background: #c0392b; }
+
+  .goal-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .goal-meta .remaining { color: var(--text); font-weight: 500; }
+  .goal-meta .remaining.over { color: #c0392b; }
+
+  /* Stats row */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .stat-card .val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .stat-card .lbl {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    letter-spacing: 0.06em;
+  }
+
+  /* Buttons */
+  .btn-log {
+    width: 100%;
+    padding: 20px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 500;
+    font-family: var(--sans);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, transform 0.1s;
+    margin-bottom: 10px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-log:active { transform: scale(0.97); background: #c04e1c; }
+
+  .btn-undo {
+    width: 100%;
+    padding: 13px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-family: var(--sans);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: 28px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-undo:active { color: var(--text); border-color: var(--muted); }
+
+  /* Goal setting */
+  .goal-section {
+    margin-bottom: 28px;
+  }
+
+  .section-head {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+    margin-bottom: 12px;
+  }
+
+  .goal-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 3px solid var(--bg);
+  }
+
+  .goal-val {
+    font-family: var(--mono);
+    font-size: 18px;
+    min-width: 32px;
+    text-align: right;
+    color: var(--text);
+  }
+
+  /* Today's log */
+  .log-section { margin-bottom: 28px; }
+
+  .log-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+
+  .log-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .log-num { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+  .log-time { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+  /* History */
+  .history-section { margin-bottom: 40px; }
+
+  .hist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hist-date { font-size: 13px; color: var(--muted); min-width: 80px; font-family: var(--mono); }
+  .hist-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .hist-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .hist-count { font-family: var(--mono); font-size: 14px; min-width: 24px; text-align: right; }
+
+  .empty { color: var(--muted); font-size: 14px; padding: 10px 0; font-family: var(--mono); }
+
+  /* Money section */
+  .money-section {
+    margin-bottom: 28px;
+  }
+
+  .money-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .money-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+  }
+
+  .money-card .val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .money-card .val span {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 2px;
+  }
+
+  .money-card .lbl {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    letter-spacing: 0.06em;
+  }
+
+  .money-card.highlight {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .money-card.highlight .val { color: #f0a070; }
+  .money-card.highlight .lbl { color: #a04020; }
+
+  .pack-note {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-align: right;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface2);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-family: var(--mono);
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+  }
+
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="dot"></div>
+  <h1>Smoke Log</h1>
+</header>
+
+<div class="main">
+  <div class="hero">
+    <div class="hero-num" id="heroNum">0</div>
+    <div class="hero-label">smoked today</div>
+  </div>
+
+  <div class="goal-bar-wrap">
+    <div class="goal-bar-track">
+      <div class="goal-bar-fill" id="goalBarFill" style="width:0%"></div>
+    </div>
+    <div class="goal-meta">
+      <span>goal: <span id="goalMeta">20</span></span>
+      <span class="remaining" id="remainingText">20 remaining</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="val" id="statYesterday">—</div>
+      <div class="lbl">yesterday</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" id="statAvg">—</div>
+      <div class="lbl">7-day avg</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" id="statTotal">0</div>
+      <div class="lbl">all time</div>
+    </div>
+  </div>
+
+  <div class="money-section">
+    <div class="section-head">Money spent</div>
+    <div class="money-cards">
+      <div class="money-card highlight">
+        <div class="val"><span>&#8369;</span><span id="moneyToday">0.00</span></div>
+        <div class="lbl">today</div>
+      </div>
+      <div class="money-card">
+        <div class="val"><span>&#8369;</span><span id="moneyWeek">0.00</span></div>
+        <div class="lbl">this week</div>
+      </div>
+      <div class="money-card">
+        <div class="val"><span>&#8369;</span><span id="moneyMonth">0.00</span></div>
+        <div class="lbl">this month</div>
+      </div>
+      <div class="money-card">
+        <div class="val"><span>&#8369;</span><span id="moneyTotal">0.00</span></div>
+        <div class="lbl">all time</div>
+      </div>
+    </div>
+    <div class="pack-note">&#8369;160/pack &middot; 20 sticks per pack</div>
+  </div>
+
+  <button class="btn-log" onclick="logOne()">+ Smoked one</button>
+  <button class="btn-undo" onclick="undo()">↩ undo last</button>
+
+  <div class="goal-section">
+    <div class="section-head">Daily goal</div>
+    <div class="goal-row">
+      <input type="range" id="goalSlider" min="1" max="60" value="20" step="1" oninput="setGoal(this.value)">
+      <span class="goal-val" id="goalDisplay">20</span>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <div class="section-head">Today's log</div>
+    <div class="log-list" id="logList"><div class="empty">nothing yet</div></div>
+  </div>
+
+  <div class="history-section">
+    <div class="section-head">Last 7 days</div>
+    <div id="histList"><div class="empty">no history yet</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let events = JSON.parse(localStorage.getItem('cig_events') || '[]');
+  let goal = parseInt(localStorage.getItem('cig_goal') || '20');
+  const PACK_PRICE = 160;
+  const STICKS_PER_PACK = 20;
+  const PRICE_PER_STICK = PACK_PRICE / STICKS_PER_PACK;
+
+  function cigCost(count) {
+    return (count * PRICE_PER_STICK).toFixed(2);
+  }
+
+  document.getElementById('goalSlider').value = goal;
+  document.getElementById('goalDisplay').textContent = goal;
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function dateKey(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function fmtDateShort(key) {
+    const [y,m,d] = key.split('-');
+    const dt = new Date(+y, +m-1, +d);
+    const today = todayKey();
+    const yest = (() => { const dd = new Date(); dd.setDate(dd.getDate()-1); return dateKey(dd); })();
+    if (key === today) return 'today';
+    if (key === yest) return 'yest';
+    return dt.toLocaleDateString([], {month:'short', day:'numeric'});
+  }
+
+  function save() {
+    localStorage.setItem('cig_events', JSON.stringify(events));
+    localStorage.setItem('cig_goal', String(goal));
+  }
+
+  function setGoal(v) {
+    goal = parseInt(v);
+    document.getElementById('goalDisplay').textContent = goal;
+    save(); render();
+  }
+
+  function logOne() {
+    events.push(Date.now());
+    save(); render();
+    const heroEl = document.getElementById('heroNum');
+    heroEl.classList.add('bump');
+    setTimeout(() => heroEl.classList.remove('bump'), 200);
+    showToast('logged');
+  }
+
+  function undo() {
+    const today = todayKey();
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (dateKey(events[i]) === today) { events.splice(i, 1); break; }
+    }
+    save(); render();
+    showToast('undone');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1500);
+  }
+
+  function render() {
+    const today = todayKey();
+    const todayEvts = events.filter(ts => dateKey(ts) === today);
+    const count = todayEvts.length;
+
+    document.getElementById('heroNum').textContent = count;
+
+    const pct = Math.min(count / goal * 100, 100);
+    const fill = document.getElementById('goalBarFill');
+    fill.style.width = pct + '%';
+    fill.className = 'goal-bar-fill' + (count > goal ? ' over' : '');
+
+    document.getElementById('goalMeta').textContent = goal;
+    const left = goal - count;
+    const remEl = document.getElementById('remainingText');
+    if (left > 0) { remEl.textContent = left + ' remaining'; remEl.className = 'remaining'; }
+    else if (left === 0) { remEl.textContent = 'goal reached'; remEl.className = 'remaining'; remEl.style.color = '#3a9e6e'; }
+    else { remEl.textContent = Math.abs(left) + ' over goal'; remEl.className = 'remaining over'; remEl.style.color = ''; }
+
+    // Group by day
+    const days = {};
+    events.forEach(ts => { const k = dateKey(ts); days[k] = (days[k]||0)+1; });
+
+    // Stats
+    const yestKey = (() => { const d = new Date(); d.setDate(d.getDate()-1); return dateKey(d); })();
+    document.getElementById('statYesterday').textContent = days[yestKey] !== undefined ? days[yestKey] : '—';
+    document.getElementById('statTotal').textContent = events.length;
+
+    // Money
+    const now = new Date();
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const weekCount = events.filter(ts => ts >= startOfWeek.getTime()).length;
+    const monthCount = events.filter(ts => ts >= startOfMonth.getTime()).length;
+
+    document.getElementById('moneyToday').textContent = cigCost(count);
+    document.getElementById('moneyWeek').textContent = cigCost(weekCount);
+    document.getElementById('moneyMonth').textContent = cigCost(monthCount);
+    document.getElementById('moneyTotal').textContent = cigCost(events.length);
+
+    const keys7 = Object.keys(days).sort().slice(-7);
+    if (keys7.length > 0) {
+      const avg = keys7.reduce((a,k) => a + days[k], 0) / keys7.length;
+      document.getElementById('statAvg').textContent = Math.round(avg);
+    } else {
+      document.getElementById('statAvg').textContent = '—';
+    }
+
+    // Today log
+    const logList = document.getElementById('logList');
+    if (todayEvts.length === 0) {
+      logList.innerHTML = '<div class="empty">nothing yet</div>';
+    } else {
+      logList.innerHTML = [...todayEvts].reverse().map((ts, i) =>
+        `<div class="log-item">
+          <span class="log-num">#${todayEvts.length - i}</span>
+          <span class="log-time">${fmtTime(ts)}</span>
+        </div>`
+      ).join('');
+    }
+
+    // History
+    const histList = document.getElementById('histList');
+    const allKeys = Object.keys(days).sort().reverse().slice(0, 7);
+    if (allKeys.length === 0) {
+      histList.innerHTML = '<div class="empty">no history yet</div>';
+    } else {
+      const maxVal = Math.max(...allKeys.map(k => days[k]), 1);
+      histList.innerHTML = allKeys.map(k => {
+        const cnt = days[k];
+        const pct = Math.round(cnt / maxVal * 100);
+        return `<div class="hist-row">
+          <span class="hist-date">${fmtDateShort(k)}</span>
+          <div class="hist-bar-bg"><div class="hist-bar-fill" style="width:${pct}%"></div></div>
+          <span class="hist-count">${cnt}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>
